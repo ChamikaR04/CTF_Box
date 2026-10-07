@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Investigation // CyberVault{% endblock %}
+{% block content %}
+<h2 style="color:#00ff9c; margin-bottom:6px; font-family:'Share Tech Mono',monospace;">&gt; INCIDENT: NEXACORE-2291</h2>
+<p style="color:#6effc2; margin-bottom:18px; font-size:0.9em;">Suspicious activity detected across NexaCore Solutions' internal network. Trace the breach, stage by stage.</p>
+<p class="progress">[ {{ solved_ids|length }} / {{ total_stages }} ] stages cleared</p>
+
+{% for chal in challenges %}
+<div class="card">
+  <span class="badge">{{ chal['category'] }}</span>
+  <span class="badge">{{ chal['points'] }} pts</span>
+  {% if chal['id'] in solved_ids %}
+    <span class="badge solved-badge">CLEARED</span>
+  {% endif %}
+  <h3 style="margin-top:10px;">{{ chal['title'] }}</h3>
+  <p style="color:#8fd9b0; margin:10px 0;">{{ chal['description'] }}</p>
+
+  {% if chal['file_link'] %}
+    <p style="margin-bottom:14px;">
+        <a href="{{ url_for('download_artifact', challenge_id=chal['id']) }}"
+           style="color:#00ff9c;">
+            > download_artifact
+        </a>
+    </p>
+  {% endif %}
+
+  {% if chal['id'] not in solved_ids %}
+    <form method="POST" action="{{ url_for('submit_flag', challenge_id=chal['id']) }}" style="display:flex; gap:10px;">
+      <input type="text" name="flag" placeholder="CV{...}" style="margin:0;">
+      <button type="submit">[ SUBMIT ]</button>
+    </form>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% if challenges|length < total_stages %}
+<p style="color:#3d5c48; font-size:0.85em;">// further stages will decrypt as you progress</p>
+{% endif %}
+{% endblock %}

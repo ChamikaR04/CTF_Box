@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Scoreboard // CyberVault{% endblock %}
+{% block content %}
+<h2 style="color:#00ff9c; margin-bottom:24px; font-family:'Share Tech Mono',monospace;">&gt; OPERATIVE RANKINGS</h2>
+<div class="card">
+  <table>
+    <tr><th>rank</th><th>operative</th><th>score</th></tr>
+    {% for user in users %}
+    <tr><td>{{ loop.index }}</td><td>{{ user['username'] }}</td><td>{{ user['score'] }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{% block title %}CyberVault // NexaCore Breach{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    background: #000;
+    color: #b8ffcf;
+    overflow-x: hidden;
+  }
+
+  #matrix-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: -1;
+    opacity: 0.18;
+  }
+
+  header {
+    background: rgba(0,0,0,0.85);
+    border-bottom: 1px solid #0f2f1f;
+    padding: 16px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    backdrop-filter: blur(2px);
+  }
+  .logo {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 1.4em;
+    color: #00ff9c;
+    text-shadow: 0 0 8px rgba(0,255,156,0.7), 0 0 20px rgba(0,255,156,0.3);
+    letter-spacing: 1px;
+    position: relative;
+  }
+  .logo::before {
+    content: "root@nexacore:~$ ";
+    color: #3fdc72aa;
+    font-size: 0.6em;
+    display: block;
+    text-shadow: none;
+  }
+  .logo span { color: #ff2ec4; text-shadow: 0 0 8px rgba(255,46,196,0.6); }
+
+  nav a { color: #6effc2; text-decoration: none; margin-left: 24px; font-size: 0.9em; }
+  nav a:hover { color: #ff2ec4; text-shadow: 0 0 6px rgba(255,46,196,0.6); }
+
+  .container { max-width: 900px; margin: 50px auto; padding: 0 20px; position: relative; z-index: 1; }
+
+  .flash {
+    background: rgba(0,20,10,0.85);
+    border: 1px solid #00ff9c;
+    color: #00ff9c;
+    padding: 12px 18px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    font-size: 0.88em;
+  }
+  .flash::before { content: "> "; }
+
+  .progress {
+    color: #6effc2;
+    margin-bottom: 24px;
+    font-size: 0.9em;
+    border-left: 2px solid #00ff9c;
+    padding-left: 10px;
+  }
+
+  .card {
+    background: rgba(3,10,6,0.9);
+    border: 1px solid #123d28;
+    border-radius: 4px;
+    padding: 24px;
+    margin-bottom: 20px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: #00ff9c55; }
+  .card h3 { color: #00ff9c; margin-bottom: 6px; font-family: 'Share Tech Mono', monospace; }
+
+  .badge {
+    display: inline-block;
+    background: #0a1f14;
+    color: #6effc2;
+    border: 1px solid #123d28;
+    font-size: 0.72em;
+    padding: 3px 10px;
+    border-radius: 10px;
+    margin-right: 8px;
+  }
+  .solved-badge { background: #062b19; color: #00ff9c; border-color: #00ff9c55; }
+
+  input[type=text], input[type=password] {
+    background: #000;
+    border: 1px solid #123d28;
+    color: #b8ffcf;
+    padding: 10px 12px;
+    border-radius: 4px;
+    width: 100%;
+    margin: 8px 0 16px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  input:focus { outline: none; border-color: #00ff9c; box-shadow: 0 0 6px rgba(0,255,156,0.4); }
+
+  button, .btn {
+    background: transparent;
+    border: 1px solid #00ff9c;
+    color: #00ff9c;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  button:hover, .btn:hover { background: #00ff9c; color: #000; box-shadow: 0 0 14px rgba(0,255,156,0.5); }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 10px; border-bottom: 1px solid #123d28; text-align: left; }
+  th { color: #6effc2; font-size: 0.8em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+<canvas id="matrix-canvas"></canvas>
+
+<header>
+  <div class="logo">CYBERVAULT<span>::</span>NEXACORE</div>
+  <nav>
+    {% if session.get('username') %}
+      <a href="{{ url_for('challenges') }}">./challenges</a>
+      <a href="{{ url_for('scoreboard') }}">./scoreboard</a>
+      <a href="{{ url_for('logout') }}">./logout ({{ session['username'] }})</a>
+    {% else %}
+      <a href="{{ url_for('login') }}">./login</a>
+      <a href="{{ url_for('register') }}">./register</a>
+    {% endif %}
+  </nav>
+</header>
+
+<div class="container">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}{% for msg in messages %}<div class="flash">{{ msg }}</div>{% endfor %}{% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+
+<script>
+const canvas = document.getElementById('matrix-canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const chars = "01アイウエオカキクケコCVNEXACORE{}_";
+const fontSize = 14;
+const columns = Math.floor(canvas.width / fontSize);
+const drops = Array(columns).fill(1);
+
+function draw() {
+  ctx.fillStyle = "rgba(0,0,0,0.08)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#00ff9c";
+  ctx.font = fontSize + "px monospace";
+  for (let i = 0; i < drops.length; i++) {
+    const text = chars[Math.floor(Math.random() * chars.length)];
+    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+      drops[i] = 0;
+    }
+    drops[i]++;
+  }
+}
+setInterval(draw, 50);
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+</script>
+
+</body>
+</html>

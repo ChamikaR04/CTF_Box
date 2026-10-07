@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Login // CyberVault{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px; margin:60px auto;">
+  <h3>&gt; AUTHENTICATE</h3>
+  <form method="POST">
+    <label>username:</label>
+    <input type="text" name="username" required>
+    <label>password:</label>
+    <input type="password" name="password" required>
+    <button type="submit">[ CONNECT ]</button>
+  </form>
+  <p style="margin-top:16px; font-size:0.85em; color:#6effc2;">
+    no access credentials? <a href="{{ url_for('register') }}" style="color:#00ff9c;">./register</a>
+  </p>
+</div>
+{% endblock %}
