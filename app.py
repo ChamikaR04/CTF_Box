@@ -21,7 +21,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
-        score INTEGER DEFAULT 0
+        score INTEGER DEFAULT 20
     );
 
     CREATE TABLE IF NOT EXISTS challenges (
@@ -32,10 +32,19 @@ def init_db():
         points INTEGER NOT NULL,
         flag TEXT NOT NULL,
         file_link TEXT,
-        unlock_after INTEGER DEFAULT NULL
+        unlock_after INTEGER DEFAULT NULL,
+        hint TEXT,
+        hint_cost INTEGER DEFAULT 20
     );
 
     CREATE TABLE IF NOT EXISTS solves (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        challenge_id INTEGER NOT NULL,
+        UNIQUE(user_id, challenge_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS hints_used (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         challenge_id INTEGER NOT NULL,
@@ -51,26 +60,32 @@ def init_db():
         stages = [
             ("CV-01 :: Hidden Message", "Steganography",
              "An ordinary company image was recovered from an employee workstation. IT believes it conceals more than it shows. Inspect it closely.",
-             100, "CV{Cs_Nexacore}", "/static/challenge-files/cv01-image.jpg", None, 0),
+             100, "CV{metadata_never_forgets_4576}", "/static/challenge-files/nexacore_office.jpg", None,
+             "Check the file's metadata for hidden text — tools like 'strings' or 'exiftool' can reveal it.", 20),
             ("CV-02 :: Network Trail", "Networking",
              "A clue from Stage 1 points to a suspicious system inside the NexaCore internal network. Scan it. Something is listening.",
-             100, "CV{network_recon_success}", None, 1),
+             100, "CV{network_recon_success}", None, 1,
+             "Try connecting with FTP — anonymous login might be allowed.", 20),
             ("CV-03 :: Web Gateway", "Web Security",
              "Network reconnaissance surfaced a web service with a designed weakness. Breach the front door.",
-             150, "CV{sql_injection_bypass}", None, 2),
+             150, "CV{web_gateway_sqli_bypass_success}", None, 2,
+             "The login form may not be sanitizing input. What happens if you comment out the rest of the SQL query?", 30),
             ("CV-04 :: Encrypted Note", "Cryptography",
              "Behind the gateway sits an encrypted note, left deliberately by the intruder. Break the cipher.",
-             150, "CV{vigenere_cipher_solved}", "/static/challenge-files/cv04-encrypted-note.txt", 3),
+             150, "CV{cl4ss1c_c1ph3rs_st1ll_m4tt3r}", "/static/challenge-files/encrypted_note.txt", 3,
+             "It's a classical polyalphabetic cipher. The keyword relates to the company name mentioned throughout the scenario.", 30),
             ("CV-05 :: Deleted Evidence", "Digital Forensics",
              "The decrypted note reveals an attempt to erase the trail. Nothing is ever truly gone.",
-             200, "CV{deleted_files_never_really_disappear}", "/static/challenge-files/cv05-evidence-package.zip", 4),
+             200, "CV{d3l3t3d_but_n0t_g0n3}", "/static/challenge-files/cv05_evidence.img", 4,
+             "Deleting a file doesn't erase its data from disk. Try searching the raw image for readable strings.", 40),
             ("CV-06 :: Final Server", "Linux/System Security",
              "The trail ends at one Linux server. Breach it, escalate, and close the case.",
-             250, "CV{privilege_escalation_complete}", None, 5),
+             250, "CV{final_server_suid_python_root_shell}", None, 5,
+             "Look for binaries with the SUID bit set — some can be abused to spawn a root shell.", 50),
         ]
         for s in stages:
             conn.execute(
-                "INSERT INTO challenges (title, category, description, points, flag, file_link, unlock_after) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO challenges (title, category, description, points, flag, file_link, unlock_after, hint, hint_cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 s
             )
         conn.commit()
@@ -94,7 +109,7 @@ def register():
             return redirect(url_for("register"))
 
         password_hash = generate_password_hash(password)
-        conn.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, password_hash))
+        conn.execute("INSERT INTO users (username, password_hash, score) VALUES (?, ?, 20)", (username, password_hash))
         conn.commit()
         conn.close()
         flash("Access created. You may connect now.")
@@ -149,6 +164,10 @@ def challenges():
         row["challenge_id"] for row in
         conn.execute("SELECT challenge_id FROM solves WHERE user_id = ?", (session["user_id"],)).fetchall()
     }
+    hints_used_ids = {
+        row["challenge_id"] for row in
+        conn.execute("SELECT challenge_id FROM hints_used WHERE user_id = ?", (session["user_id"],)).fetchall()
+    }
     conn.close()
 
     visible_challs = []
@@ -158,7 +177,7 @@ def challenges():
             visible_challs.append(chal)
 
     return render_template("challenges.html", challenges=visible_challs, solved_ids=solved_ids,
-                            total_stages=len(all_challs))
+                            hints_used_ids=hints_used_ids, total_stages=len(all_challs))
 
 
 @app.route("/submit/<int:challenge_id>", methods=["POST"])
@@ -197,6 +216,63 @@ def submit_flag(challenge_id):
         flash(f"Access granted. +{chal['points']} points. Next stage decrypted.")
     else:
         flash("Incorrect flag. Access denied.")
+
+    conn.close()
+    return redirect(url_for("challenges"))
+
+
+@app.route("/hint/<int:challenge_id>", methods=["POST"])
+@login_required
+def use_hint(challenge_id):
+    conn = get_db()
+    chal = conn.execute("SELECT * FROM challenges WHERE id = ?", (challenge_id,)).fetchone()
+
+    if not chal:
+        flash("Challenge not found.")
+        conn.close()
+        return redirect(url_for("challenges"))
+
+    if not chal["hint"]:
+        flash("No hint available for this challenge.")
+        conn.close()
+        return redirect(url_for("challenges"))
+
+    if chal["unlock_after"] is not None:
+        prereq_solved = conn.execute(
+            "SELECT * FROM solves WHERE user_id = ? AND challenge_id = ?",
+            (session["user_id"], chal["unlock_after"])
+        ).fetchone()
+        if not prereq_solved:
+            flash("Access denied. Complete the previous stage first.")
+            conn.close()
+            return redirect(url_for("challenges"))
+
+    already_used = conn.execute(
+        "SELECT * FROM hints_used WHERE user_id = ? AND challenge_id = ?",
+        (session["user_id"], challenge_id)
+    ).fetchone()
+
+    if already_used:
+        flash(f"Hint: {chal['hint']}")
+        conn.close()
+        return redirect(url_for("challenges"))
+
+    user = conn.execute("SELECT score FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+    if user is None:
+        session.clear()
+        flash("Your session is invalid. Please log in again.")
+        conn.close()
+        return redirect(url_for("login"))
+
+    if user["score"] < chal["hint_cost"]:
+        flash(f"Not enough points for this hint. You need {chal['hint_cost']}, you have {user['score']}.")
+        conn.close()
+        return redirect(url_for("challenges"))
+
+    conn.execute("INSERT INTO hints_used (user_id, challenge_id) VALUES (?, ?)", (session["user_id"], challenge_id))
+    conn.execute("UPDATE users SET score = score - ? WHERE id = ?", (chal["hint_cost"], session["user_id"]))
+    conn.commit()
+    flash(f"Hint: {chal['hint']} (-{chal['hint_cost']} points)")
 
     conn.close()
     return redirect(url_for("challenges"))
@@ -252,6 +328,7 @@ def download_artifact(challenge_id):
         as_attachment=True
     )
 
+
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=8080)

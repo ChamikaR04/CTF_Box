@@ -24,6 +24,27 @@
     </p>
   {% endif %}
 
+  {% if chal['hint'] %}
+    <form method="POST" action="{{ url_for('use_hint', challenge_id=chal['id']) }}"
+          style="display:inline-block; margin-bottom:14px;"
+          {% if chal['id'] not in hints_used_ids %}
+          onsubmit="return confirm('Use a hint for -{{ chal.hint_cost }} points? This cannot be undone.');"
+          {% endif %}>
+        <button type="submit" style="background:none; border:1px solid #3d5c48; color:#6effc2; padding:4px 10px; cursor:pointer; font-family:'Share Tech Mono',monospace;">
+            {% if chal['id'] in hints_used_ids %}
+                > view_hint
+            {% else %}
+                > request_hint (-{{ chal['hint_cost'] }} pts)
+            {% endif %}
+        </button>
+    </form>
+    {% if chal['id'] in hints_used_ids %}
+      <p style="color:#6effc2; font-size:0.85em; margin-bottom:14px; border-left:2px solid #3d5c48; padding-left:10px;">
+          {{ chal['hint'] }}
+      </p>
+    {% endif %}
+  {% endif %}
+
   {% if chal['id'] not in solved_ids %}
     <form method="POST" action="{{ url_for('submit_flag', challenge_id=chal['id']) }}" style="display:flex; gap:10px;">
       <input type="text" name="flag" placeholder="CV{...}" style="margin:0;">
