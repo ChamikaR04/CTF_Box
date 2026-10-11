@@ -1,0 +1,25 @@
+version: "3.9"
+
+# Run this only on the VirtualBox Host-Only network (isolated CTF network).
+# Do not expose these ports beyond that network.
+
+services:
+  cv03-web-gateway:
+    build: ./cv03-web-gateway
+    container_name: cv03-web-gateway
+    ports:
+      - "5000:5000"
+    networks:
+      - ctf-isolated
+
+  cv06-final-server:
+    build: ./cv06-final-server
+    container_name: cv06-final-server
+    ports:
+      - "2222:22"
+    networks:
+      - ctf-isolated
+
+networks:
+  ctf-isolated:
+    driver: bridge
